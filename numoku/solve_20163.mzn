@@ -33,40 +33,80 @@ constraint forall(j in 1..n_cols)
   (COL_TOTAL = sum(i in 1..n_rows)(puzzle[i, j]));
 
 
-% all heights of visible skyscrapers adds up to NORTHs
-% constraint forall(n in 1..n_cols)()
-
-% check costs from NORTH
-array[1..n_rows, 1..n_cols] of var 1..9: north_view;
+% -- visible houses from NORTH
+array[1..n_rows, 1..n_cols] of var 0..1: north_view;
 constraint forall(j in 1..n_cols, i in 1..n_rows)
-  (if i = 1 then
-    north_view[i, j] = puzzle[i, j]
+  (north_view[i, j] = if i = 1 then
+    1
   else
-    north_view[i, j] = max(puzzle[i, j], north_view[i - 1, j])
+    bool2int(puzzle[i, j] > max([puzzle[n, j] | n in 1..(i-1)]))
   endif);
 
-% the each NORTH column should add up to given limits
+% each NORTH column should add up to given limits
 constraint forall(j in 1..n_cols)
-  (NORTH[j] =
-      sum(i in 1..n_rows where north_view[i, j] = puzzle[i, j])(north_view[i, j]));
+  (NORTH[j] = sum(i in 1..n_rows)(north_view[i, j] * puzzle[i, j]));
 
-% check costs from WEST
-array[1..n_rows, 1..n_cols] of var 1..9: west_view;
+% -- find visible houses from WEST
+array[1..n_rows, 1..n_cols] of var 0..1: west_view;
+
 constraint forall(i in 1..n_rows, j in 1..n_cols)
-  (if j = 1 then
-    west_view[i, j] = puzzle[i, j]
+  (west_view[i, j] = if j = 1 then
+    1
    else
-    west_view[i, j] = max(puzzle[i, j], west_view[i, j-1])
+    bool2int(puzzle[i, j] > max([puzzle[i, n] | n in 1..(j-1)]))
    endif);
 
 % the each WEST column sould add up to the given limits on left side
-constraint forall(i in 1..n_cols)
-  (WEST[i] =
-    (sum(j in 1..n_cols where west_view[i, j] = puzzle[i, j])(west_view[i, j])));
+constraint forall(i in 1..n_rows)
+  (WEST[i] = sum(j in 1..n_cols)(west_view[i, j] * puzzle[i, j]));
+
+% -- visible houses from EAST
+array[1..n_rows, 1..n_cols] of var 0..1: east_view;
+
+constraint forall(i in 1..n_rows, j in 1..n_cols)
+  (east_view[i, j] = if j = n_cols then
+    % all items of last column are visible from east
+    1
+   else
+    bool2int(puzzle[i, j] > max([puzzle[i, n] | n in (j + 1)..n_cols]))
+   endif);
+
+% the each EAST column should add up to correct heights
+constraint forall(i in 1..n_rows)
+  (EAST[i] = sum(j in 1..n_cols)(east_view[i, j] * puzzle[i, j]));
+
+% -- visible houses visible from SOUTH
+array[1..n_rows, 1..n_cols] of var 0..1: south_view;
+
+% any higher house than all previous one, are visible
+constraint forall(j in 1..n_cols, i in 1..n_rows)
+  (south_view[i,j] = if i = n_rows then
+     1
+   else
+     bool2int(puzzle[i, j] > max([puzzle[n, j] | n in (i + 1)..n_rows]))
+   endif);
+
+% the each SOUTH column should add up to correct heights
+constraint forall(j in 1..n_cols)
+  (SOUTH[j] - sum(i in 1..n_rows)(south_view[i, j ] * puzzle[i, j]) = 0);
 
 solve satisfy;
 
-output [(show_int(3, puzzle[i, j]) ++
-          if (j mod 3) = 0 then "||" else "|" endif ++
-          if (j mod n_cols) = 0 then "\n" else "" endif
-        ) | i in 1..n_rows, j in 1..n_cols];
+output
+["North view:\n"] ++
+[show(north_view[i, j]) ++ (if j mod n_cols = 0 then "\n" else ", " endif) | i in 1..n_rows, j in 1..n_cols] ++
+["\n"] ++
+["West view:\n"] ++
+[show(west_view[i, j]) ++ (if j mod n_cols = 0 then "\n" else ", " endif) | i in 1..n_rows, j in 1..n_cols] ++
+["\n"] ++
+["East view:\n"] ++
+[show(east_view[i, j]) ++ (if j mod n_cols = 0 then "\n" else ", " endif) | i in 1..n_rows, j in 1..n_cols] ++
+["\n"] ++
+["South view:\n"] ++
+[show(south_view[i, j]) ++ (if j mod n_cols = 0 then "\n" else ", " endif) | i in 1..n_rows, j in 1..n_cols] ++
+["\n"] ++
+["Solution:\n"] ++
+[(show_int(3, puzzle[i, j]) ++
+  if (j mod 3) = 0 then "||" else "|" endif ++
+  if (j mod n_cols) = 0 then "\n" else "" endif
+) | i in 1..n_rows, j in 1..n_cols];
