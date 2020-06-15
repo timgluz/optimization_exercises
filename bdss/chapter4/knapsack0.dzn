@@ -1,0 +1,5 @@
+capacity = 4;
+max_weight = 43;
+
+n = 6;
+items = [7, 10, 23, 13, 4, 16];
